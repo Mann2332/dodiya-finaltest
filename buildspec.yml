@@ -3,17 +3,31 @@ version: 0.2
 phases:
   pre_build:
     commands:
-      - echo Logging into Amazon ECR...
-      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 920373034562.dkr.ecr.us-east-1.amazonaws.com
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - $(aws ecr get-login --no-include-email --region us-east-1)
+      - REPOSITORY_URI=920373034562.dkr.ecr.us-east-1.amazonaws.com/finaltestapp
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+
   build:
     commands:
       - echo Build started on `date`
+      - echo Building the Docker image...
       - docker build -t finaltestapp .
-      - docker tag finaltestapp:latest 920373034562.dkr.ecr.us-east-1.amazonaws.com/finaltestapp:latest
+      - docker tag finaltestapp:latest $REPOSITORY_URI:$IMAGE_TAG
+      - docker tag finaltestapp:latest $REPOSITORY_URI:latest
+
   post_build:
     commands:
       - echo Build completed on `date`
-      - docker push 920373034562.dkr.ecr.us-east-1.amazonaws.com/finaltestapp:latest
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:latest
+
+      # OPTIONAL: Save image details for ECS deploy (CodeDeploy or Terraform can pick this up)
+      - printf '[{"name":"finaltestapp","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
 
 artifacts:
-  files: appspec.yml
+  files:
+    - appspec.yml
+    - imagedefinitions.json
